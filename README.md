@@ -16,6 +16,7 @@ When I started, web-based viewers were already available -- A WebGL-based viewer
 - Users can convert `.ply` or `.splat` files to the `.ksplat` file format
 - Allows a Three.js scene or object group to be rendered along with the splats
 - Built-in WebXR support
+- Supports 1st and 2nd degree spherical harmonics for view-dependent effects
 - Focus on optimization:
     - Splats culled prior to sorting & rendering using a custom octree
     - WASM splat sort: Implemented in C++ using WASM SIMD instructions
@@ -32,7 +33,6 @@ When I started, web-based viewers were already available -- A WebGL-based viewer
 ## Future work
 This is still very much a work in progress! There are several things that still need to be done:
   - Improve the method by which splat data is stored in textures
-  - Properly incorporate spherical harmonics data to achieve view dependent lighting effects
   - Continue optimizing CPU-based splat sort - maybe try an incremental sort of some kind?
   - Add editing mode, allowing users to modify scene and export changes
   - Support very large scenes
@@ -59,11 +59,19 @@ Keyboard
   - Ratio of rendered splats to total splats
   - Last splat sort duration
 
-- `P` Toggles a debug object that shows the orientation of the camera controls. It includes a green arrow representing the camera's orbital axis and a white square representing the plane at which the camera's elevation angle is 0.
+- `U` Toggles a debug object that shows the orientation of the camera controls. It includes a green arrow representing the camera's orbital axis and a white square representing the plane at which the camera's elevation angle is 0.
 
 - `Left arrow` Rotate the camera's up vector counter-clockwise
 
 - `Right arrow` Rotate the camera's up vector clockwise
+
+- `P` Toggle point-cloud mode, where each splat is rendered as a filled circle
+
+- `=` Increase splat scale
+
+- `-` Decrease splat scale
+
+- `O` Toggle orthographic mode
 
 <br>
 
@@ -262,8 +270,10 @@ const viewer = new GaussianSplats3D.Viewer({
     'webXRMode': GaussianSplats3D.WebXRMode.None,
     'renderMode': GaussianSplats3D.RenderMode.OnChange,
     'sceneRevealMode': GaussianSplats3D.SceneRevealMode.Instant,
-    `antialiased`: false,
-    `focalAdjustment`: 1.0
+    'antialiased': false,
+    'focalAdjustment': 1.0,
+    'logLevel': GaussianSplats3D.LogLevel.None,
+    'sphericalHarmonicsDegree': 0
 });
 viewer.addSplatScene('<path to .ply, .ksplat, or .splat file>')
 .then(() => {
@@ -297,6 +307,8 @@ Advanced `Viewer` parameters
 | `sceneRevealMode` | Controls the fade-in effect used when the scene is loaded. Valid values are defined in the `SceneRevealMode` enum: `Default`, `Gradual`, and `Instant`. `Default` results in a nice, slow fade-in effect for progressively loaded scenes, and a fast fade-in for non progressively loaded scenes. `Gradual` will force a slow fade-in for all scenes. `Instant` will force all loaded scene data to be immediately visible.
 | `antialiased` |  When true, will perform additional steps during rendering to address artifacts caused by the rendering of gaussians at substantially different resolutions than that at which they were rendered during training. This will only work correctly for models that were trained using a process that utilizes this compensation calculation. For more details: https://github.com/nerfstudio-project/gsplat/pull/117, https://github.com/graphdeco-inria/gaussian-splatting/issues/294#issuecomment-1772688093
 | `focalAdjustment` | Hacky, non-scientific parameter for tweaking focal length related calculations. For scenes with very small gaussians & small details, increasing this value can help improve visual quality. Default value is 1.0.
+| `logLevel` | Verbosity of the console logging. Defaults to `GaussianSplats3D.LogLevel.None`.
+| `sphericalHarmonicsDegree` | Degree of spherical harmonics to utilize in rendering splats (assuming the data is present in the splat scene). Valid values are 0, 1, or 2. Default value is 0.
 <br>
 
 ### Creating KSPLAT files
@@ -307,7 +319,11 @@ import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 
 const compressionLevel = 1;
 const splatAlphaRemovalThreshold = 5; // out of 255
-GaussianSplats3D.PlyLoader.loadFromURL('<path to .ply or .splat file>', compressionLevel, splatAlphaRemovalThreshold)
+const sphericalHarmonicsDegree = 1;
+GaussianSplats3D.PlyLoader.loadFromURL('<path to .ply or .splat file>',
+                                        compressionLevel,
+                                        splatAlphaRemovalThreshold,
+                                        sphericalHarmonicsDegree)
 .then((splatBuffer) => {
     GaussianSplats3D.KSplatLoader.downloadFile(splatBuffer, 'converted_file.ksplat');
 });
@@ -320,7 +336,7 @@ The third option is to use the included nodejs script:
 node util/create-ksplat.js [path to .PLY or .SPLAT] [output file] [compression level = 0] [alpha removal threshold = 1]
 ```
 
-Currently supported values for `compressionLevel` are `0` or `1`. `0` means no compression, `1` means compression of scale, rotation, and position values from 32-bit to 16-bit.
+Currently supported values for `compressionLevel` are `0`, `1`, or `2`. `0` means no compression and `1` means compression of scale, rotation, position, and spherical harmonics coefficient values from 32-bit to 16-bit. `2` is similar to `1` except spherical harmonics coefficients are compressed to 8-bit.
 
 <br>
 
