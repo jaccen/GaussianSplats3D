@@ -13,18 +13,32 @@ export class DropInViewer extends THREE.Group {
         options.selfDrivenMode = false;
         options.useBuiltInControls = false;
         options.rootElement = null;
-        options.ignoreDevicePixelRatio = false;
         options.dropInMode = true;
         options.camera = undefined;
         options.renderer = undefined;
 
         this.viewer = new Viewer(options);
         this.splatMesh = null;
+        this.updateSplatMesh();
 
         this.callbackMesh = DropInViewer.createCallbackMesh();
         this.add(this.callbackMesh);
         this.callbackMesh.onBeforeRender = DropInViewer.onBeforeRender.bind(this, this.viewer);
 
+        this.viewer.onSplatMeshChanged(() => {
+            this.updateSplatMesh();
+        });
+
+    }
+
+    updateSplatMesh() {
+        if (this.splatMesh !== this.viewer.splatMesh) {
+            if (this.splatMesh) {
+                this.remove(this.splatMesh);
+            }
+            this.splatMesh = this.viewer.splatMesh;
+            this.add(this.viewer.splatMesh);
+        }
     }
 
     /**
@@ -85,22 +99,27 @@ export class DropInViewer extends THREE.Group {
         return this.viewer.getSplatScene(sceneIndex);
     }
 
-    removeSplatScene(index) {
-        return this.viewer.removeSplatScene(index);
+    removeSplatScene(index, showLoadingUI = true) {
+        return this.viewer.removeSplatScene(index, showLoadingUI);
     }
 
-    dispose() {
-        return this.viewer.dispose();
+    removeSplatScenes(indexes, showLoadingUI = true) {
+        return this.viewer.removeSplatScenes(indexes, showLoadingUI);
+    }
+
+    getSceneCount() {
+        return this.viewer.getSceneCount();
+    }
+
+    setActiveSphericalHarmonicsDegrees(activeSphericalHarmonicsDegrees) {
+        this.viewer.setActiveSphericalHarmonicsDegrees(activeSphericalHarmonicsDegrees);
+    }
+
+    async dispose() {
+        return await this.viewer.dispose();
     }
 
     static onBeforeRender(viewer, renderer, threeScene, camera) {
-        if (this.splatMesh !== this.viewer.splatMesh) {
-            if (this.splatMesh) {
-                this.remove(this.splatMesh);
-            }
-            this.splatMesh = this.viewer.splatMesh;
-            this.add(this.viewer.splatMesh);
-        }
         viewer.update(renderer, camera);
     }
 
